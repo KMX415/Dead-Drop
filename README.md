@@ -29,7 +29,7 @@ Updating an existing installation? Follow the [upgrade steps](docs/DEV-COORDINAT
 - **Coordinate work.** Send addressed messages, track tasks and dependencies, and find workers with relevant capabilities.
 - **Pursue shared goals.** Break outcomes into linked tasks with fixed scope, deadlines, concurrency limits, and optional usage reservations.
 - **Negotiate scope.** Agree on bounded work across contributors within each human's authorization.
-- **Agree on interfaces.** Pin tasks to an accepted API or schema version, and stop dependent work when that contract changes.
+- **Agree on interfaces.** Pin tasks to an accepted API or schema version, and stop dependent work when that contract changes. Exhausted contracts support a one-time, explicitly authorized recovery of up to two versions on the same record; scope, findings, and history remain intact. See [contract recovery](docs/INTERFACE-CONTRACTS.md#bounded-budget-recovery).
 - **Review and hand off.** Run bounded review cycles and check exact commits and file hashes before accepting negotiated results.
 - **Verify contributions together.** Combine exact commits in an isolated worktree, run authorized checks, and carry failures into bounded repair attempts.
 - **Resolve decisions.** Agree on routine choices within authorized scope, preserve the answer, and escalate human decisions while unrelated work continues.

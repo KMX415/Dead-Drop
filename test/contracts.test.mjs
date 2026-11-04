@@ -141,7 +141,7 @@ test('version budgets, deadlines, declines and input limits bound contract work'
   assert.equal(c.exhausted,true);
   await assert.rejects(f.advance('alice',c,'revise',f.terms),/budget exhausted/);
   await assert.rejects(f.propose({request_id:'budget-reset'}),/reset its budget/);
-  await assert.rejects(f.propose({work_id:'bad',request_id:'bad',max_versions:6}),/1-5/);
+  await assert.rejects(f.propose({work_id:'bad',request_id:'bad',max_versions:101}),/1-100/);
   await assert.rejects(f.propose({work_id:'bad',request_id:'bad',paths:['../outside']}),/relative/);
   await assert.rejects(f.propose({work_id:'bad',request_id:'bad',examples:[]}),/examples/);
   f.tick(30*60000);assert.equal((await f.invoke('bob','get_contract',{contract_id:c.id})).status,'expired');
@@ -229,4 +229,108 @@ test('pagination and continuation expose contracts without sending messages or a
   const actions=await f.invoke('alice','next_actions');assert.ok(actions.actions.some(a=>a.inspect?.tool==='get_contract'));
   const notifications=await f.invoke('alice','list_notifications');assert.ok(notifications.notifications.some(n=>n.contractId===one.id));
   assert.equal(JSON.stringify(f.store.state),before);assert.deepEqual(f.store.state.messages,[]);
+});
+
+async function recoveryFixture(maxVersions=3,maxRecoveryVersions=2) {
+  const f=await fixture();f.store.repo='example/mailbox';
+  let c=await f.propose({max_versions:maxVersions,max_recovery_versions:maxRecoveryVersions});
+  for(let i=1;i<maxVersions;i++)c=await f.advance('alice',c,'revise',f.terms);
+  c=await f.advance('bob',c,'request_changes');
+  const task=await f.create();
+  let d=await f.invoke('alice','request_decision',{issue_key:'budget',required_responders:Object.values(f.ids),question:'Two more versions?',options:[{id:'bounded',label:'Two',tradeoffs:'Same scope'},{id:'defer',label:'Defer',tradeoffs:'Wait'}],evidence:['fixture:approval'],task_refs:[{task_id:task.id,revision:task.revision}],category:'budget',deadline:'2026-01-01T00:20:00Z',request_id:'decision'});
+  for(const owner of Object.keys(f.ids))d=await f.invoke(owner,'resolve_decision',{decision_id:d.id,expected_revision:d.revision,request_id:'resolve',option_id:'bounded',rationale:'Fixture owner approval',authority:'human_report',authorization_evidence:['fixture:human']});
+  const args={contract_id:c.id,expected_revision:c.revision,digest:c.digest,decision_id:d.id,expected_decision_revision:d.revision,decision_digest:d.digest,option_id:'bounded',additional_versions:2,authorization_id:'fixture-grant',request_id:'recover-once',summary:'Two authorized additional versions'};
+  const {request_id,summary,...binding}=args;
+  const grant={...binding,repo:f.store.repo,owner:'alice',agent_id:f.ids.alice,expires_at:'2026-01-01T00:15:00Z',owner_approvals:Object.keys(f.ids).map(owner=>({owner,evidence:'fixture:verified-owner-approval'}))};
+  f.boxes.alice.readRecoveryAuthorizations=async()=>[grant];
+  return {...f,c,d,args,grant,recover:(extra={})=>f.invoke('alice','recover_contract',{...args,...extra})};
+}
+
+test('contract recovery retains history and rejected digest, permits exactly two proposer revisions once',async()=>{
+  const f=await recoveryFixture(),before=structuredClone(f.c);
+  let c=await f.recover();
+  assert.equal(c.maxVersions,3);assert.equal(c.effectiveMaxVersions,5);assert.equal(c.revision,before.revision+1);
+  assert.deepEqual(c.versions,before.versions);assert.equal(c.digest,before.digest);assert.equal(c.status,'proposed');
+  for(const key of ['participants','paths','deadline','workId','taskRefs','repository'])assert.deepEqual(c[key],before[key]);
+  assert.deepEqual(c.history.slice(0,-1),before.history);
+  await assert.rejects(f.advance('bob',c,'revise',f.terms),/Only proposer/);
+  c=await f.advance('alice',c,'revise',f.terms);c=await f.advance('alice',c,'revise',f.terms);
+  await assert.rejects(f.advance('alice',c,'revise',f.terms),/budget exhausted/);
+  await assert.rejects(f.recover({expected_revision:c.revision,digest:c.digest,request_id:'new-key'}),/already used/);
+  f.boxes.alice.readRecoveryAuthorizations=async()=>{throw new Error('approval removed');};
+  assert.equal((await f.recover()).version,5);
+  await assert.rejects(f.recover({summary:'changed'}),/different content/);
+});
+
+test('contract recovery rejects absent/local mismatched authorization and stale/excessive requests without writes',async()=>{
+  const changes=[
+    f=>{f.boxes.alice.readRecoveryAuthorizations=async()=>[];},
+    f=>{f.grant.repo='other/mailbox';},f=>{f.grant.agent_id=f.ids.bob;},
+    f=>{f.grant.additional_versions=1;},f=>{f.grant.owner_approvals.pop();},
+    f=>{f.grant.expires_at='2025-01-01';},f=>{f.args.additional_versions=3;},
+    f=>{f.args.expected_revision++;},f=>{f.args.digest='0'.repeat(64);},
+    f=>{f.args.expected_decision_revision++;},f=>{f.args.decision_digest='0'.repeat(64);},
+    f=>{f.args.option_id='defer';},f=>{f.policies.alice=null;},
+    f=>{f.store.state.decisions[0].category='implementation';},
+    f=>{f.store.state.decisions[0].deadline='2025-01-01';},
+    f=>{f.store.state.decisions[0].requiredResponders.pop();},
+    f=>{f.store.state.tasks[0].revision++;},
+    f=>{f.store.state.contracts[0].deadline='2025-01-01';},
+    f=>{f.store.state.contracts[0].versions.at(-1).responses=[];},
+    f=>{f.store.state.contracts[0].status='declined';}
+  ];
+  for(const change of changes){const f=await recoveryFixture();change(f);const before=structuredClone(f.store.state);await assert.rejects(f.recover());assert.deepEqual(f.store.state,before);}
+  const f=await recoveryFixture();await assert.rejects(f.invoke('bob','recover_contract',f.args),/Only proposer/);
+});
+
+test('concurrent exact recovery retries converge and durable replay does not add another allowance',async t=>{
+  const f=await recoveryFixture();const results=await Promise.all([f.recover(),f.recover()]);
+  assert.equal(results[0].revision,results[1].revision);assert.equal(f.store.state.contracts[0].history.filter(h=>h.action==='recover').length,1);
+  const directory=await mkdtemp(join(tmpdir(),'dead-drop-recovery-'));t.after(()=>rm(directory,{recursive:true,force:true}));
+  const args={agent_id:f.ids.alice,...f.args};assert.equal(supportsDurable('recover_contract',args),true);
+  await assert.rejects(runDurable({directory,tool:'recover_contract',args,invoke:async()=>{await f.recover();throw new Error('lost response');}}));
+  const result=await replayOutbox({directory,agentId:f.ids.alice,invoke:(name,input)=>call(f.boxes.alice,name,input)});
+  assert.equal(result.operations[0].status,'delivered');assert.equal(f.store.state.contracts[0].budgetRecovery.additionalVersions,2);
+});
+
+test('recovery covers one-version allowance and default recovery ceiling',async()=>{
+  for(const [base,extra] of [[3,1],[5,2]]) {
+    const f=await recoveryFixture(base);f.grant.additional_versions=extra;f.args.additional_versions=extra;
+    let c=await f.recover();assert.equal(c.effectiveMaxVersions,base+extra);
+    for(let i=0;i<extra;i++)c=await f.advance('alice',c,'revise',f.terms);
+    await assert.rejects(f.advance('alice',c,'revise',f.terms),/budget exhausted/);
+    f.tick(3600000);assert.equal((await f.recover()).version,base+extra);
+  }
+});
+
+test('configurable budgets support longer reviews without expanding exact owner grants',async()=>{
+  const f=await recoveryFixture(6,10);
+  assert.equal(f.c.maxRecoveryVersions,10);
+  await assert.rejects(f.recover({additional_versions:3}),/authorization/);
+  f.grant.additional_versions=8;
+  let c=await f.recover({additional_versions:8});
+  assert.equal(c.effectiveMaxVersions,14);
+  for(let i=0;i<8;i++)c=await f.advance('alice',c,'revise',f.terms);
+  await assert.rejects(f.advance('alice',c,'revise',f.terms),/budget exhausted/);
+  const disabled=await recoveryFixture(1,0);
+  await assert.rejects(disabled.recover(),/ceiling/);
+  const legacy=await recoveryFixture();
+  delete legacy.store.state.contracts[0].maxRecoveryVersions;
+  legacy.grant.additional_versions=3;
+  await assert.rejects(legacy.recover({additional_versions:3}),/ceiling/);
+});
+
+test('budget ceilings validate finite integers and cannot be changed by transitions',async()=>{
+  for(const value of [-1,101,1.5,Infinity]) {
+    const f=await fixture();await assert.rejects(f.propose({max_recovery_versions:value}),/ceiling|Invalid max_recovery_versions/);
+  }
+  const f=await fixture();const c=await f.propose({max_versions:100,max_recovery_versions:100});
+  assert.equal(c.maxVersions,100);assert.equal(c.maxRecoveryVersions,100);
+  await assert.rejects(f.advance('alice',c,'revise',{...f.terms,max_recovery_versions:101}),/Unknown argument/);
+});
+
+test('recovery rejects duplicate grants and non-exhausted or agreed contracts',async()=>{
+  for(const mutate of [f=>{f.boxes.alice.readRecoveryAuthorizations=async()=>[f.grant,f.grant];},f=>{f.store.state.contracts[0].status='agreed';},f=>{f.store.state.contracts[0].maxVersions=4;}]){
+    const f=await recoveryFixture();mutate(f);const before=structuredClone(f.store.state);await assert.rejects(f.recover());assert.deepEqual(f.store.state,before);
+  }
 });

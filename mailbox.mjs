@@ -1,6 +1,7 @@
+import { readContractRecoveryAuthorizations } from './contract-recovery-authorization.mjs';
 import { requestDecision, resolveDecision, getDecision, listDecisions } from './decisions.mjs';
 import { createIntegrationCheck, getIntegrationCheck, listIntegrationChecks, advanceIntegrationCheck } from './integration-checks.mjs';
-import { proposeContract, advanceContract, getContract, listContracts } from './contracts.mjs';
+import { recoverContract, proposeContract, advanceContract, getContract, listContracts } from './contracts.mjs';
 import { rankSkills, getSkillValidations, recordSkillValidation } from './skill-selection.mjs';
 import { requestPeerHelp, advancePeerHelp, getPeerHelp, listPeerHelp } from './peer-help.mjs';
 import { createGoal, getGoal, listGoals, updateGoal, reserveGoalUsage, settleGoalUsage } from './goals.mjs';
@@ -38,6 +39,7 @@ export class Mailbox {
   getIntegrationCheck = getIntegrationCheck;
   listIntegrationChecks = listIntegrationChecks;
   advanceIntegrationCheck = advanceIntegrationCheck;
+  recoverContract = recoverContract;
   proposeContract = proposeContract;
   advanceContract = advanceContract;
   getContract = getContract;
@@ -98,7 +100,7 @@ export class Mailbox {
   listTasks = listTasks;
   getTask = getTask;
   updateTask = updateTask;
-  constructor(store, login, now = Date.now, readPolicy = async()=>null) { this.store = store; this.login = login; this.now = now; this.readPolicy = readPolicy; }
+  constructor(store, login, now = Date.now, readPolicy = async()=>null, readRecoveryAuthorizations = readContractRecoveryAuthorizations) { this.store = store; this.login = login; this.now = now; this.readPolicy = readPolicy; this.readRecoveryAuthorizations = readRecoveryAuthorizations; }
   actor(state, id) {
     const a = state.agents[id];
     if (!a || a.owner !== this.login) throw new Error('Agent identity does not belong to your authenticated GitHub account; call join_team');

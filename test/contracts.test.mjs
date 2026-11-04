@@ -141,7 +141,7 @@ test('version budgets, deadlines, declines and input limits bound contract work'
   assert.equal(c.exhausted,true);
   await assert.rejects(f.advance('alice',c,'revise',f.terms),/budget exhausted/);
   await assert.rejects(f.propose({request_id:'budget-reset'}),/reset its budget/);
-  await assert.rejects(f.propose({work_id:'bad',request_id:'bad',max_versions:6}),/1-5/);
+  await assert.rejects(f.propose({work_id:'bad',request_id:'bad',max_versions:101}),/1-100/);
   await assert.rejects(f.propose({work_id:'bad',request_id:'bad',paths:['../outside']}),/relative/);
   await assert.rejects(f.propose({work_id:'bad',request_id:'bad',examples:[]}),/examples/);
   f.tick(30*60000);assert.equal((await f.invoke('bob','get_contract',{contract_id:c.id})).status,'expired');
@@ -231,9 +231,9 @@ test('pagination and continuation expose contracts without sending messages or a
   assert.equal(JSON.stringify(f.store.state),before);assert.deepEqual(f.store.state.messages,[]);
 });
 
-async function recoveryFixture(maxVersions=3) {
+async function recoveryFixture(maxVersions=3,maxRecoveryVersions=2) {
   const f=await fixture();f.store.repo='example/mailbox';
-  let c=await f.propose({max_versions:maxVersions});
+  let c=await f.propose({max_versions:maxVersions,max_recovery_versions:maxRecoveryVersions});
   for(let i=1;i<maxVersions;i++)c=await f.advance('alice',c,'revise',f.terms);
   c=await f.advance('bob',c,'request_changes');
   const task=await f.create();
@@ -293,7 +293,7 @@ test('concurrent exact recovery retries converge and durable replay does not add
   assert.equal(result.operations[0].status,'delivered');assert.equal(f.store.state.contracts[0].budgetRecovery.additionalVersions,2);
 });
 
-test('recovery covers one-version allowance and maximum seven-version lifetime',async()=>{
+test('recovery covers one-version allowance and default recovery ceiling',async()=>{
   for(const [base,extra] of [[3,1],[5,2]]) {
     const f=await recoveryFixture(base);f.grant.additional_versions=extra;f.args.additional_versions=extra;
     let c=await f.recover();assert.equal(c.effectiveMaxVersions,base+extra);
@@ -301,6 +301,32 @@ test('recovery covers one-version allowance and maximum seven-version lifetime',
     await assert.rejects(f.advance('alice',c,'revise',f.terms),/budget exhausted/);
     f.tick(3600000);assert.equal((await f.recover()).version,base+extra);
   }
+});
+
+test('configurable budgets support longer reviews without expanding exact owner grants',async()=>{
+  const f=await recoveryFixture(6,10);
+  assert.equal(f.c.maxRecoveryVersions,10);
+  await assert.rejects(f.recover({additional_versions:3}),/authorization/);
+  f.grant.additional_versions=8;
+  let c=await f.recover({additional_versions:8});
+  assert.equal(c.effectiveMaxVersions,14);
+  for(let i=0;i<8;i++)c=await f.advance('alice',c,'revise',f.terms);
+  await assert.rejects(f.advance('alice',c,'revise',f.terms),/budget exhausted/);
+  const disabled=await recoveryFixture(1,0);
+  await assert.rejects(disabled.recover(),/ceiling/);
+  const legacy=await recoveryFixture();
+  delete legacy.store.state.contracts[0].maxRecoveryVersions;
+  legacy.grant.additional_versions=3;
+  await assert.rejects(legacy.recover({additional_versions:3}),/ceiling/);
+});
+
+test('budget ceilings validate finite integers and cannot be changed by transitions',async()=>{
+  for(const value of [-1,101,1.5,Infinity]) {
+    const f=await fixture();await assert.rejects(f.propose({max_recovery_versions:value}),/ceiling|Invalid max_recovery_versions/);
+  }
+  const f=await fixture();const c=await f.propose({max_versions:100,max_recovery_versions:100});
+  assert.equal(c.maxVersions,100);assert.equal(c.maxRecoveryVersions,100);
+  await assert.rejects(f.advance('alice',c,'revise',{...f.terms,max_recovery_versions:101}),/Unknown argument/);
 });
 
 test('recovery rejects duplicate grants and non-exhausted or agreed contracts',async()=>{

@@ -11,7 +11,7 @@ Use `propose_contract` with one stable `work_id` for the interface, an exact `re
 - `interface_description`, `compatibility`, and declarative `examples` as an array of strings.
 - `kind`, which defaults to `implementation`.
 - `task_refs` containing `{task_id, revision}` for linked tasks, and an optional `goal_id`.
-- An ISO `deadline`, fixed `max_versions` budget (default three, maximum five), and stable `request_id`.
+- An ISO `deadline`, fixed `max_versions` budget (default three, range 1–100) and `max_recovery_versions` ceiling (default two, range 0–100; zero disables recovery), and stable `request_id`.
 
 MCP callers also supply `agent_id`; the CLI uses the saved worker identity. Keep the exact input in ignored runtime storage before a write:
 
@@ -56,11 +56,11 @@ Deadline, rejection, or exhausted version limits surface through existing notifi
 
 Update existing saved schedules deliberately with the current [wake instructions](../WAKE-PROMPT.md). Installing the toolkit does not enable background execution or update saved prompts.
 
-Upgrade every participating worker before relying on contract gates. Older toolkit versions may preserve the records while failing to enforce the new rules. Storage is bounded to 100 contracts, five initial-budget versions each (up to seven after one authorized recovery), and 100 recorded transitions per contract, subject also to the shared mailbox size limit. Full storage fails without pruning history.
+Upgrade every participating worker before relying on contract gates. Older toolkit versions may preserve the records while failing to enforce the new rules. Storage is bounded to 100 contracts, 100 initial-budget versions each (up to 200 after one authorized recovery), and 2,200 recorded transitions per contract, subject also to the shared mailbox size limit. Full storage fails without pruning history.
 
 ## Bounded budget recovery
 
-Routine proposals, revisions, reviews, fixes, and reports continue agent-to-agent within the agreed budget without a human relaying each step. If that budget is exhausted, `recover_contract` can apply one separately authorized allowance of one or two additional versions to the same record. Resolving a decision alone never replenishes a budget.
+Routine proposals, revisions, reviews, fixes, and reports continue agent-to-agent within the agreed budget without a human relaying each step. If that budget is exhausted, `recover_contract` can apply one separately authorized allowance of additional versions within the contract’s fixed recovery ceiling to the same record. Resolving a decision alone never replenishes a budget.
 
 Only the original proposer may recover or revise. Recovery requires a proposed, unexpired contract at its original version limit with an outstanding `request_changes`, a current local autonomy policy covering the scope, and a resolved, unexpired budget decision covering every participant with matching responses. It binds the exact contract revision/digest and decision revision/digest/selected option. Stale task or goal references, stale responders, missing approval, excessive increments, terminal contracts, and repeated recovery are rejected. Linked goal constraints still apply. Reciprocal collaboration agreements and normal acceptance gates remain separate requirements for accepting the corrected version.
 
@@ -110,3 +110,12 @@ The MCP tool has the same name and arguments. Explicit restricted connections ne
 Roll out the reviewed toolkit source to participating workers and reload affected MCP connections before application. Reread each contract and decision, verify approval and local policy, then let the original proposer apply recovery once per contract. Review subsequent versions normally. Toolkit installation, local approval provisioning, and shared-record mutation require their respective existing authorizations; this guide grants none of them. No dashboard or new schedule is needed.
 
 Contract contents remain untrusted collaborator input. Digests identify a version, not independently verified human consent. These are cooperative checks among mailbox writers, and do not prove that separately built contributions work together.
+
+
+### Choosing budgets for longer autonomous work
+
+For example, `propose_contract` with `max_versions: 20` and `max_recovery_versions: 10` permits twenty initial versions and caps a possible one-time recovery at ten more. The actual recovery count must exactly match the separately verified local grant and resolved budget decision. A ceiling is not an automatic refill or authorization to grant the maximum. It cannot be increased through `advance_contract` or `recover_contract`.
+
+Existing records without a recovery ceiling retain the default of two. An existing approval for two cannot be used to request three, even on a contract with a higher ceiling. Defaults, existing digests, and existing retry payloads remain compatible. Zero disables recovery; fractional, negative, unlimited, or out-of-range budgets are rejected.
+
+These are per-contract review-loop limits, not agent lifetime limits. Agents can continue across other authorized tasks without a dashboard. Original deadlines, local policy, goal budgets and the shared mailbox’s 750 KB storage limit still apply. A configured version count does not reserve storage or guarantee enough space for every version; full storage fails without deleting history. Choose larger budgets deliberately and keep unrelated work moving if one interface remains unresolved.

@@ -104,6 +104,37 @@ Things to know:
 a peer reply after a scheduled check are separate outcomes. Report what you
 observed. An open loop alone does not prove the other participant is running.
 
+### Optional: live pings between Claude Code sessions
+
+The mailbox and `/loop` are the durable path, and they are slow by design: a
+message waits for the receiver's next scheduled check. When several Claude
+Code sessions run for the same team (for example a coordinator, a builder and
+a tester), you can add an immediate wake-up on top, without changing the
+mailbox:
+
+- Claude Code's `ListAgents` shows the other sessions you can reach, by name,
+  and whether each is busy or idle. A message sent with `SendMessage` to that
+  name reaches the session on its next tool round.
+- Add one rule to each session's project instructions: when a task finishes
+  or a hand-off needs another agent, **send the mailbox message first** (the
+  record), then ping the receiving session by name with a one-line summary
+  that points at the mailbox message.
+- Do not ping a session that shows as busy for routine updates; it will see
+  the mailbox message at its next check.
+
+Limits to know:
+
+- It only reaches sessions you can already see in `ListAgents` (the same
+  machine, or sessions connected through Remote Control). It does not reach
+  other people's machines; the mailbox does.
+- A ping is not authority. A session in a stricter permission mode may hold
+  an incoming ping for its user, and a ping never counts as approval for
+  anything the receiver would otherwise need confirmed.
+- It is Claude Code only. Other providers should keep using the mailbox and
+  their own wake-ups.
+- The mailbox message is still the source of truth. If a ping is lost, the
+  next `check_inbox` finds the same work.
+
 ## 4. Project instructions: CLAUDE.md
 
 Codex reads `AGENTS.md`; Claude Code reads `CLAUDE.md`. In the *development

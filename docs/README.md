@@ -26,6 +26,7 @@
 | [Profiles and autonomy](AUTONOMY.md) | Capability discovery and local work limits |
 | [Autonomous continuation](AUTONOMOUS-CONTINUATION.md) | Routing, review, recovery, and useful-result notifications |
 | [Recovery and health](RECOVERY-HEALTH.md) | Checkpoints, durable CLI outbox, and diagnosis |
+| [Mailbox storage](STORAGE.md) | Segmented snapshots, explicit migration, compatibility, and recovery |
 | [Review cycles](REVIEW-CYCLES.md) | Bounded feedback and approval of current task revisions |
 | [Shared skills](SHARED-SKILLS.md) | Capture, review, publish, export, and report reuse |
 | [Skill improvement](SKILL-IMPROVEMENT.md) | Turn repeated failures into reviewed successors |

@@ -1,5 +1,6 @@
 import { configuredRepo } from './config.mjs';
 import { spawn } from 'node:child_process';
+import { SegmentedStorage, FORMAT, encodeSnapshot } from './segmented-storage.mjs';
 
 export const STORAGE_BRANCH = 'dev-agent-mailbox';
 export const STORAGE_FILE = 'mailbox.json';
@@ -45,6 +46,7 @@ export class GitHubStore {
   constructor(repo = configuredRepo()) {
     if (typeof repo !== 'string' || !/^[\w.-]+\/[\w.-]+$/.test(repo) || repo.split('/').some(part => part === '.' || part === '..')) throw new Error('Repository must be owner/name');
     this.repo = repo;
+    this.segmented = new SegmentedStorage(this, STORAGE_BRANCH, STORAGE_FILE);
   }
   async api(path, method = 'GET', body) {
     const args = ['api', '--hostname', 'github.com', '--method', method, '-H', 'Accept: application/vnd.github+json', path];
@@ -74,17 +76,45 @@ export class GitHubStore {
     const file = await this.api(`repos/${this.repo}/contents/${STORAGE_FILE}?ref=${STORAGE_BRANCH}`);
     if (file.encoding !== 'base64' || file.size > 750000) throw new Error('Unsupported or oversized mailbox state');
     const state = JSON.parse(Buffer.from(file.content, 'base64').toString('utf8'));
+    if (state.version === 2) {
+      const snapshot = await this.segmented.read();
+      validateState(snapshot.state, 2);
+      return snapshot;
+    }
     if (['decisions','integrationChecks','contracts','reviewCycles','checkpoints','skillImprovements','notificationReceipts','collaborationAgreements','negotiations','handoffs'].some(key => state[key] !== undefined && !Array.isArray(state[key]))) throw new Error('Unsupported mailbox schema');
     if (state.version !== 1 || !state.agents || !Array.isArray(state.messages) || !Array.isArray(state.claims) || (state.tasks !== undefined && !Array.isArray(state.tasks)) || (state.skills !== undefined && !Array.isArray(state.skills))) throw new Error('Unsupported mailbox schema');
     return { state, sha: file.sha };
   }
   async write(state, sha) {
+    if (sha?.format === FORMAT || state.version === 2) {
+      validateState(state, 2);
+      return this.segmented.publish(state, sha);
+    }
     const json = JSON.stringify(state);
     if (Buffer.byteLength(json) > 750000) throw new Error('Mailbox full; archive it before adding more data');
     await this.api(`repos/${this.repo}/contents/${STORAGE_FILE}`, 'PUT', {
       message: 'Update development mailbox [skip ci]', branch: STORAGE_BRANCH, sha,
       content: Buffer.from(json).toString('base64'),
     });
+  }
+  async migrateStorage({expected_head, apply=false, all_clients_upgraded=false}={}) {
+    await this.verify();
+    const head=await this.segmented.head();
+    if(expected_head!==undefined && expected_head!==head)throw new Error('Mailbox head changed; inspect a fresh migration plan');
+    const {text}=await this.segmented.readFile(STORAGE_FILE,head);
+    const state=JSON.parse(text);
+    if(state.version===2) {
+      const snapshot=await this.segmented.read(head);validateState(snapshot.state,2);
+      return {alreadyMigrated:true,head,format:FORMAT};
+    }
+    validateState(state,1);
+    state.version=2;
+    const encoded=encodeSnapshot(state);
+    const plan={repo:this.repo,head,from:1,to:2,bytes:encoded.manifest.bytes,segments:encoded.nodes.size,
+      warning:'Old clients, including the frozen Hermes plugin, cannot use this mailbox after migration. Preserve this head as the recovery snapshot. No histories or budgets are reset.'};
+    if(!apply)return plan;
+    if(!all_clients_upgraded || !expected_head)throw new Error('Migration requires expected_head and explicit all_clients_upgraded confirmation');
+    return {...plan,...await this.segmented.publish(state,{format:FORMAT,head,reachable:new Set()},{migration:true}),migrated:true,previousHead:head};
   }
   async initialize() {
     await this.verify();
@@ -149,4 +179,11 @@ export class GitHubStore {
     // Recheck privacy/access before constructing mailbox objects after a race.
     await this.verify();
   }
+}
+
+function validateState(state,version) {
+  if(!state || state.version!==version || !state.agents || typeof state.agents!=='object' || Array.isArray(state.agents) ||
+     !Array.isArray(state.messages)||!Array.isArray(state.claims) ||
+     ['tasks','skills','decisions','integrationChecks','contracts','reviewCycles','checkpoints','skillImprovements','notificationReceipts','collaborationAgreements','negotiations','handoffs']
+       .some(key=>state[key]!==undefined&&!Array.isArray(state[key])))throw new Error('Unsupported mailbox schema');
 }

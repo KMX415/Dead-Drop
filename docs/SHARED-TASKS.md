@@ -116,10 +116,11 @@ Agents, and Messages views. Tasks show status, assignment, dependencies,
 acceptance criteria, evidence, and handoff history. Filter by status or assignee,
 or search across the selected view. The viewer remains read-only.
 
-Limits: 500 tasks, 100 updates per task, 30 entries per acceptance/dependency/
+Limits: 500 tasks, 100 history entries per task in version 1, 30 entries per acceptance/dependency/
 artifact/next-step list, 500 characters per entry, 200-character titles, and
-4,000-character descriptions/summaries. All records share the existing 750,000
-byte mailbox limit, which may be reached first. Limits fail explicitly; there
+4,000-character descriptions/summaries. Version 2 retains longer task histories
+within its snapshot and segment budgets and supports paginated history reads.
+All records share the [mailbox storage limits](STORAGE.md), which may be reached first. Limits fail explicitly; there
 is no automatic deletion or archival. Retry keys are scoped to creator for
 creation and to task plus actor for updates. No new scheduler or automatic
 notifications are installed.

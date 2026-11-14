@@ -153,7 +153,7 @@ Claim files/directories before coordinated edits, renew long leases, and release
 
 ## Storage and migration
 
-State lives in `mailbox.json` on orphan branch `dev-agent-mailbox`. SHA compare-and-swap retries protect concurrent writes. Limits: 2,000 messages, 750 KB state, 1,000 registered identities. Full storage fails explicitly and needs deliberate archiving; no automatic history deletion is implemented. Anyone with repository write access can directly edit storage, so ownership checks are not isolation between untrusted collaborators.
+State lives on orphan branch `dev-agent-mailbox`. Version 1 uses one `mailbox.json` document with a 750 KB limit and SHA compare-and-swap writes. Optional version 2 uses a manifest and bounded immutable segments with atomic Git publication and a 32 MB snapshot limit. Follow the explicit [storage migration guide](STORAGE.md); every participant must upgrade first. Limits of 2,000 messages and 1,000 registered identities still apply. Full storage fails explicitly; no automatic history deletion is implemented. Anyone with repository write access can directly edit storage, so ownership checks are not isolation between untrusted collaborators.
 
 Keep credentials, transcripts, and unrelated personal information out of messages. Git retains historical versions. Before public release, use a clean reviewed source export and keep mailbox storage private. Refusing public repositories cannot retract previously exposed history.
 

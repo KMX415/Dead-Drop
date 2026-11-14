@@ -31,7 +31,7 @@ export async function routeTask({agent_id,task_id,expected_revision,request_id,s
     const decision=eligibility(state,actor,{...task,assigneeId:agent_id,requiredCapabilities:[]},policy,now,{goalExecution:false});
     if(!decision.allowed)throw new Error(decision.reasons.join('; '));
     if(policy&&(task.handoffCount??0)+1>policy.max_handoffs)throw new Error('Handoff count exceeds policy');
-    if(task.history.length>=100)throw new Error('Task history full');
+    if(state.version!==2 && task.history.length>=100)throw new Error('Task history full');
     // Active review ownership cannot be moved by the delivery mechanism.
     assertTaskReviewAction(state,task,'handoff');
     const attempted=previous?.attempted??[];

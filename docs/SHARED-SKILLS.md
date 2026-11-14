@@ -224,8 +224,8 @@ the tools. Limits are 100 skill versions, 30 reviews and 100 use reports per
 version, and 10 lifecycle history entries per version. Names are lowercase
 kebab-case, up to 64 characters; titles allow 200, descriptions 1,000, and
 `when_to_use` 2,000. Steps, validation, and evidence each require 1–30 entries,
-up to 1,000 characters each. Tags allow up to 20 entries. The existing 750,000
-byte mailbox limit applies to all shared data and may be reached first.
+up to 1,000 characters each. Tags allow up to 20 entries. The
+[mailbox storage limits](STORAGE.md) apply to all shared data and may be reached first.
 Limits fail explicitly; there is no automatic archival or deletion.
 
 All skill content, evidence, references, and exports are untrusted collaborator

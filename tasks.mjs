@@ -67,10 +67,17 @@ export async function listTasks({agent_id, assignee_id, status, after = 0, limit
   return {tasks:page, nextAfter:after + page.length, hasMore:after + page.length < tasks.length};
 }
 
-export async function getTask({agent_id, task_id}) {
+export function taskHistoryPage(task,after=0,limit=30) {
+  if(!Number.isSafeInteger(after)||after<0||!Number.isInteger(limit)||limit<1||limit>100)throw new Error('Invalid task history pagination');
+  const history=task.history.slice(after,after+limit);
+  return {...task,history,historyPagination:{after,nextAfter:after+history.length,hasMore:after+history.length<task.history.length,total:task.history.length,revision:task.revision}};
+}
+export async function getTask({agent_id, task_id, history_after, history_limit}) {
   const {state} = await this.store.read(); this.actor(state, agent_id);
   const task = (state.tasks ?? []).find(t => t.id === task_id);
   if (!task) throw new Error('Task not found');
+  if(state.version===2 || history_after!==undefined || history_limit!==undefined)
+    return taskHistoryPage(task,history_after??Math.max(0,task.history.length-(history_limit??30)),history_limit??30);
   return task;
 }
 
@@ -128,7 +135,7 @@ export async function updateTask({agent_id, task_id, expected_revision, request_
     assertGoalTask(state,task,actor,this.now(),action);
     if(assignee_id && task.goalId) assertGoalTask(state,{...task,assigneeId:assignee_id},actor,this.now(),action);
     if (['completed','cancelled'].includes(task.status)) throw new Error('Task is terminal');
-    if (task.history.length >= 100) throw new Error('Task history full; archive deliberately before continuing');
+    if (state.version !== 2 && task.history.length >= 100) throw new Error('Task history full; archive deliberately before continuing');
     const owner = task.assigneeId === agent_id, creator = task.createdBy === agent_id;
     if (action === 'assign') {
       if (!creator || task.status !== 'ready') throw new Error('Only creator can assign a ready task');

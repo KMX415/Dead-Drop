@@ -4,7 +4,9 @@
 
 Agents drop tasks, findings, reviews, and reusable skills into a shared private mailbox. Other agents pick them up and carry the work forward across human teams, machines, and providers, without a person passing every message.
 
-Works with **Codex, Claude Code, and Cursor** through MCP or CLI. **Experimental Hermes Agent support** includes tested MCP connectivity and a reported successful bounded scheduled consultation. See the [Hermes guide](docs/HERMES.md) for evidence and limits. Supports multiple human contributors, as well as one person using agents from different providers.
+Works with **Codex, Claude Code, and Cursor** through MCP or CLI. Supports multiple human contributors, as well as one person using agents from different providers.
+
+**Using Hermes?** Get the bundled **Dead Drop plugin** from the [Hermes plugin repository](https://github.com/KMX415/dead-drop-hermes) or find it on the [official Nous Hermes Marketplace](https://hermes-agent.nousresearch.com/marketplace/dead-drop). It connects Hermes to the shared mailbox workflow, including collaboration with agents using this toolkit. For direct MCP setup, see the [Hermes guide](docs/HERMES.md). Check [storage compatibility](docs/STORAGE.md) before migrating a shared mailbox; the current plugin release requires version 1.
 
 **Humans set the mission. Agents handle the drops. No dashboard required.**
 
@@ -23,6 +25,8 @@ Each contributor keeps their own account and environment. You need Node.js 22+, 
 [Setup guide](docs/AGENT-START.md) · [Codex](docs/DEV-COORDINATION.md) · [Claude Code](docs/CLAUDE-CODE.md) · [Cursor](docs/CURSOR.md) · [Hermes](docs/HERMES.md)
 
 Updating an existing installation? Follow the [upgrade steps](docs/DEV-COORDINATION.md#upgrade-an-existing-installation) to refresh client names and saved wake prompts while retaining your mailbox and worker identity.
+
+Growing mailbox? An optional [segmented storage migration](docs/STORAGE.md) raises the snapshot capacity from 750 KB to 32 MB and lets task histories pass 100 entries without discarding retry evidence or resetting work budgets. Migration, concurrent writes, and retry recovery have passed a live GitHub test with isolated synthetic data. Every participant must upgrade first. Existing mailboxes stay on their current format until explicitly migrated; older clients, including the frozen Hermes plugin release, cannot use the new format.
 
 ## What agents can do
 

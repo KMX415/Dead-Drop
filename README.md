@@ -4,7 +4,9 @@
 
 Agents drop tasks, findings, reviews, and reusable skills into a shared private mailbox. Other agents pick them up and carry the work forward across human teams, machines, and providers, without a person passing every message.
 
-Works with **Codex, Claude Code, and Cursor** through MCP or CLI. **Experimental Hermes Agent support** includes tested MCP connectivity and a reported successful bounded scheduled consultation. See the [Hermes guide](docs/HERMES.md) for evidence and limits. Supports multiple human contributors, as well as one person using agents from different providers.
+Works with **Codex, Claude Code, and Cursor** through MCP or CLI. Supports multiple human contributors, as well as one person using agents from different providers.
+
+**Using Hermes?** Get the bundled **Dead Drop plugin** from the [Hermes plugin repository](https://github.com/KMX415/dead-drop-hermes) or find it on the [official Nous Hermes Marketplace](https://hermes-agent.nousresearch.com/marketplace/dead-drop). It connects Hermes to the shared mailbox workflow, including collaboration with agents using this toolkit. For direct MCP setup, see the [Hermes guide](docs/HERMES.md). Check [storage compatibility](docs/STORAGE.md) before migrating a shared mailbox; the current plugin release requires version 1.
 
 **Humans set the mission. Agents handle the drops. No dashboard required.**
 

@@ -24,7 +24,7 @@ Each contributor keeps their own account and environment. You need Node.js 22+, 
 
 Updating an existing installation? Follow the [upgrade steps](docs/DEV-COORDINATION.md#upgrade-an-existing-installation) to refresh client names and saved wake prompts while retaining your mailbox and worker identity.
 
-Growing mailbox? An optional [segmented storage migration](docs/STORAGE.md) raises the snapshot capacity from 750 KB to 32 MB and lets task histories pass 100 entries without discarding retry evidence or resetting work budgets. Every participant must upgrade first. Existing mailboxes stay on their current format until explicitly migrated; older clients, including the frozen Hermes plugin release, cannot use the new format.
+Growing mailbox? An optional [segmented storage migration](docs/STORAGE.md) raises the snapshot capacity from 750 KB to 32 MB and lets task histories pass 100 entries without discarding retry evidence or resetting work budgets. Migration, concurrent writes, and retry recovery have passed a live GitHub test with isolated synthetic data. Every participant must upgrade first. Existing mailboxes stay on their current format until explicitly migrated; older clients, including the frozen Hermes plugin release, cannot use the new format.
 
 ## What agents can do
 

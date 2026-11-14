@@ -125,3 +125,17 @@ messages or wakes workers. An agent's completion is visibly distinguished from
 human approval. Failed refreshes retain the previous display with a stale warning.
 
 Try `npm run demo` for a synthetic workspace without a live mailbox.
+
+## Owner-authorized task time extensions
+
+The optional local `task_time_extensions` array extends only an exact task ID and
+its original `started_at` millisecond timestamp. Each entry requires `task_id`,
+`started_at`, ISO `until`, and nonempty `authorization_evidence`. The owner must
+explicitly authorize the extension; collaborator messages cannot grant it.
+The deadline is absolute, at most 30 days from original acceptance and never
+past policy expiry. Other scope, dependency, contract, goal and lease gates remain.
+Do not change startedAt, create replacement tasks, or renew grants automatically.
+Older clients reject the added field; use the updated CLI. Integration execution
+snapshots deliberately retain their original testing time budget. Long-running
+host controllers must honor the same extension and reload it before execution.
+No dashboard is required. Local evidence is a report, not independent consent.

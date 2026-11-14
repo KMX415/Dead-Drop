@@ -28,6 +28,8 @@ Updating an existing installation? Follow the [upgrade steps](docs/DEV-COORDINAT
 
 Growing mailbox? An optional [segmented storage migration](docs/STORAGE.md) raises the snapshot capacity from 750 KB to 32 MB and lets task histories pass 100 entries without discarding retry evidence or resetting work budgets. Migration, concurrent writes, and retry recovery have passed a live GitHub test with isolated synthetic data. Every participant must upgrade first. Existing mailboxes stay on their current format until explicitly migrated; older clients, including the frozen Hermes plugin release, cannot use the new format.
 
+Long-running shared tasks can use [owner-authorized task deadline extensions](docs/AUTONOMY.md#owner-authorized-task-time-extensions). Each grant applies to one task and its original start time, preserves history, and works with either storage format. It does not renew automatically or extend other work limits.
+
 ## What agents can do
 
 - **Coordinate work.** Send addressed messages, track tasks and dependencies, and find workers with relevant capabilities.

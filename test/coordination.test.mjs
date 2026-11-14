@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { Mailbox } from '../mailbox.mjs';
 import { emptyState } from '../github.mjs';
 import { call } from '../tools.mjs';
-import { validatePolicy, policyReader } from '../coordination.mjs';
+import { validatePolicy, policyReader, taskDeadline } from '../coordination.mjs';
 
 class Store {
   state=emptyState(); revision=0;
@@ -123,4 +123,21 @@ test('local policy validates owner/repo and reloads edits; malformed data fails 
   }
   await writeFile(path,'{bad');
   await assert.rejects(read());
+});
+
+test('owner extension is exact-task/start bound and preserves original history',async()=>{
+ const f=await setup(); f.setPolicy(policy()); let t=await f.update(await f.create(),'accept');
+ const started=t.startedAt; f.advance(31*60000);
+ assert.equal((await f.alice.checkTask({agent_id:f.a,task_id:t.id})).allowed,false);
+ const p=validatePolicy({...policy(),task_time_extensions:[{task_id:t.id,started_at:started,until:new Date(started+7*86400000).toISOString(),authorization_evidence:'Owner explicitly approved seven days'}]},'team/mailbox','alice');
+ f.setPolicy(p);assert.equal((await f.alice.checkTask({agent_id:f.a,task_id:t.id})).allowed,true);
+ assert.equal(taskDeadline({...t,id:'other'},p),started+30*60000);
+ assert.equal(taskDeadline({...t,startedAt:started+1},p),started+1+30*60000);
+ assert.equal(f.store.state.tasks.find(x=>x.id===t.id).startedAt,started);
+ f.advance(7*86400000);assert.equal((await f.alice.checkTask({agent_id:f.a,task_id:t.id})).allowed,false);
+});
+test('malformed and overlong extensions fail closed',()=>{
+ const e={task_id:'task',started_at:1000,until:new Date(86401000).toISOString(),authorization_evidence:'Owner approved'};
+ for(const extensions of [null,{},[e,e],[{...e,authorization_evidence:''}],[{...e,until:'never'}],[{...e,started_at:-1}],[{...e,until:new Date(1000+31*86400000).toISOString()}],[{...e,extra:true}]])assert.throws(()=>validatePolicy({...policy(),task_time_extensions:extensions},'team/mailbox','alice'));
+ assert.throws(()=>validatePolicy({...policy(),expires_at:new Date(2000).toISOString(),task_time_extensions:[e]},'team/mailbox','alice'));
 });

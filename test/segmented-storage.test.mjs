@@ -7,6 +7,7 @@ import { Mailbox } from '../mailbox.mjs';
 import { call } from '../tools.mjs';
 import { encodeSnapshot, decodeSnapshot, SEGMENT_BYTES, SNAPSHOT_BYTES, segmentPath } from '../segmented-storage.mjs';
 import { parseStorageArgs } from '../storage.mjs';
+import { validatePolicy } from '../coordination.mjs';
 
 const sha=text=>createHash('sha1').update(text).digest('hex');
 const conflict=()=>Object.assign(new Error('Conflict'),{status:409});
@@ -57,6 +58,33 @@ class GitFixture {
   }
   async migrate(store=this.store()) {return store.migrateStorage({apply:true,expected_head:this.head,all_clients_upgraded:true});}
 }
+
+test('migration preserves exact-task deadline eligibility, history, and expiry across cold clients',async()=>{
+  const git=new GitFixture(),store=git.store();let now=Date.parse('2026-11-14T12:00:00Z'),policy=null;
+  const box=new Mailbox(store,'alice',()=>now,async()=>policy);
+  const agent=(await box.join({label:'Synthetic worker',task:'Deadline migration test'})).id;
+  let task=await box.createTask({agent_id:agent,title:'Long task',description:'Synthetic only',acceptance:['Preserve deadline'],paths:['src'],assignee_id:agent,request_id:'deadline-create'});
+  task=await box.updateTask({agent_id:agent,task_id:task.id,expected_revision:1,action:'accept',summary:'Start',request_id:'deadline-accept'});
+  const started=task.startedAt,until=started+7*86400000;
+  policy=validatePolicy({version:1,repo:'fixture/mailbox',owner:'alice',allowed_kinds:['implementation'],allowed_paths:['src'],allow_unassigned:false,max_active_tasks:1,max_chain_depth:1,max_handoffs:1,max_task_minutes:30,expires_at:new Date(started+10*86400000).toISOString(),task_time_extensions:[{task_id:task.id,started_at:started,until:new Date(until).toISOString(),authorization_evidence:'Synthetic owner authorization'}]},'fixture/mailbox','alice');
+  now+=31*60000;
+  assert.equal((await box.checkTask({agent_id:agent,task_id:task.id})).allowed,true);
+  const before=(await store.read()).state;
+  await git.migrate(store);
+  assert.deepEqual((await store.read()).state,{...before,version:2});
+  const cold=new Mailbox(git.store(),'alice',()=>now,async()=>policy);
+  assert.equal((await cold.checkTask({agent_id:agent,task_id:task.id})).allowed,true);
+  const payload={agent_id:agent,task_id:task.id,expected_revision:task.revision,action:'progress',summary:'Continue within fixed extension',request_id:'deadline-progress'};
+  const updated=await cold.updateTask(payload);
+  assert.equal(updated.startedAt,started);assert.equal(updated.history.length,task.history.length+1);
+  assert.equal((await cold.updateTask(payload)).revision,updated.revision);
+  policy={...policy,allowed_paths:['other']};assert.equal((await cold.checkTask({agent_id:agent,task_id:task.id})).allowed,false);
+  policy={...policy,allowed_paths:['src']};now=until;
+  assert.equal((await cold.checkTask({agent_id:agent,task_id:task.id})).allowed,false);
+  const blocked=await cold.updateTask({...payload,action:'block',expected_revision:updated.revision,request_id:'expired-block',summary:'Deadline reached; preserve evidence'});
+  await assert.rejects(cold.updateTask({...payload,action:'resume',expected_revision:blocked.revision,request_id:'expired-resume'}),/time budget/);
+  assert.equal((await store.read()).state.tasks[0].startedAt,started);
+});
 
 test('large Unicode records round-trip through bounded hashed segments without discarding history',async()=>{
   const state={...emptyState(),version:2,tasks:[{id:'same-id',revision:800,history:Array.from({length:800},(_,i)=>({revision:i,requestId:'retry-'+i,body:'🔧'.repeat(500)}))}],budget:{max_messages:20,used:19}};

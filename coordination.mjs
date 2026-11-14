@@ -56,7 +56,7 @@ export async function findAgents({capabilities=[], paths=[], available_only=true
 
 export function validatePolicy(input, repo, login) {
   if (!input || typeof input!=='object' || Array.isArray(input)) throw new Error('Invalid autonomy policy');
-  const allowed=['version','repo','owner','allowed_kinds','allowed_paths','allow_unassigned','max_active_tasks','max_chain_depth','max_handoffs','max_task_minutes','expires_at'];
+  const allowed=['version','repo','owner','allowed_kinds','allowed_paths','allow_unassigned','max_active_tasks','max_chain_depth','max_handoffs','max_task_minutes','expires_at','task_time_extensions'];
   if (Object.keys(input).some(k=>!allowed.includes(k)) || input.version!==1 || input.repo!==repo || input.owner!==login) throw new Error('Autonomy policy version, repository, owner or fields do not match');
   const kinds=strings(input.allowed_kinds,'allowed_kinds');
   const paths=strings(input.allowed_paths,'allowed_paths').map(relativePath);
@@ -65,7 +65,25 @@ export function validatePolicy(input, repo, login) {
     if (!Number.isInteger(input[key]) || input[key]<min || input[key]>max) throw new Error('Invalid '+key);
   }
   if (typeof input.expires_at!=='string' || !Number.isFinite(Date.parse(input.expires_at))) throw new Error('Invalid policy expiry');
+  if (input.task_time_extensions!==undefined) {
+    if (!Array.isArray(input.task_time_extensions) || input.task_time_extensions.length>100) throw new Error('Invalid task time extensions');
+    const ids=new Set();
+    for (const e of input.task_time_extensions) {
+      if (!e || typeof e!=='object' || Object.keys(e).sort().join(',')!=='authorization_evidence,started_at,task_id,until') throw new Error('Invalid task time extension fields');
+      boundedText(e.task_id,'extension task id',100); boundedText(e.authorization_evidence,'extension authorization evidence',2000);
+      const until=Date.parse(e.until);
+      if (ids.has(e.task_id) || !Number.isSafeInteger(e.started_at) || e.started_at<0 || typeof e.until!=='string' || !Number.isFinite(until) || until<=e.started_at || until>e.started_at+30*86400000 || until>Date.parse(input.expires_at)) throw new Error('Invalid task time extension bounds');
+      ids.add(e.task_id);
+    }
+  }
   return {...input,allowed_kinds:kinds,allowed_paths:paths};
+}
+// Local owner authorization only: exact task and original start, never a reset.
+export function taskDeadline(task, policy) {
+  if (task.startedAt===undefined) return Date.parse(policy.expires_at);
+  const base=task.startedAt+policy.max_task_minutes*60000;
+  const extension=policy.task_time_extensions?.find(e=>e.task_id===task.id && e.started_at===task.startedAt);
+  return Math.min(Date.parse(policy.expires_at), Math.max(base,extension?Date.parse(extension.until):base));
 }
 export function policyReader(repo, login, path=new URL('./runtime/autonomy.json',import.meta.url)) {
   return async()=>{
@@ -91,7 +109,7 @@ export function eligibility(state, actor, task, policy, now, {goalExecution=true
     if ((task.handoffCount??0)>policy.max_handoffs) reasons.push('Handoff count exceeds policy');
     const active=(state.tasks??[]).filter(t=>t.id!==task.id && t.assigneeId===actor.id && ['in_progress','blocked'].includes(t.status)).length;
     if (active>=policy.max_active_tasks) reasons.push('Active task limit reached');
-    if (task.startedAt!==undefined && now>=task.startedAt+policy.max_task_minutes*60000) reasons.push('Task time budget exhausted; record progress and escalate');
+    if (task.startedAt!==undefined && now>=taskDeadline(task,policy)) reasons.push('Task time budget exhausted; record progress and escalate');
   }
   return {allowed:reasons.length===0,reasons,policyConfigured:!!policy,
     note:policy?'Dead Drop scope checks do not sandbox execution. Recheck before each work segment.':'No local autonomy policy. Existing user authorization is still required.'};

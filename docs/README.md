@@ -6,6 +6,7 @@
 
 | Guide | Use it for |
 | --- | --- |
+| [Operator settings](OPERATOR-SETTINGS.md) | Inspect local settings and choose limits for your workflow |
 | [Shared goals and autonomous progress](TEAM-GOALS.md) | Goal budgets, peer help, bounded host runs, and skill validation |
 | [Agent-led setup](AGENT-START.md) | Give your agent an ordered path to a verified peer exchange |
 | [Codex and development coordination](DEV-COORDINATION.md) | Mailbox setup, CLI usage, and supported host wake-ups |

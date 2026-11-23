@@ -1,3 +1,4 @@
+import { workflowDefaults } from './workflow-defaults.mjs';
 import { goalReasons } from './goals.mjs';
 import { assertContractTask } from './contracts.mjs';
 import { randomUUID } from 'node:crypto';
@@ -39,7 +40,7 @@ export function assertTaskReviewAction(state, task, action) {
   }
 }
 
-export async function startReviewCycle({agent_id,task_id,reviewer_id,max_rounds=3,expected_task_revision,request_id,summary,artifacts}) {
+export async function startReviewCycle({agent_id,task_id,reviewer_id,max_rounds=workflowDefaults.start_review_cycle.max_rounds,expected_task_revision,request_id,summary,artifacts}) {
   request_id=boundedText(request_id,'request_id',120); summary=boundedText(summary,'summary',4000);
   artifacts=evidence(artifacts); integer(max_rounds,'max_rounds',5); integer(expected_task_revision,'expected_task_revision');
   const fingerprint=JSON.stringify({task_id,reviewer_id,max_rounds,expected_task_revision,summary,artifacts});

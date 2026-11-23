@@ -1,3 +1,4 @@
+import { workflowDefaults } from './workflow-defaults.mjs';
 import { createHash, randomUUID } from 'node:crypto';
 import { boundedText } from './coordination.mjs';
 
@@ -12,7 +13,7 @@ export const runView=(run,now)=>{
   const {fingerprint,finishFingerprint,requestId,finishRequestId,...visible}=run;
   return {...visible,archiveDigest:hash(visible),effectiveStatus:run.status==='running'&&now>=run.leaseUntil?'interrupted':run.status,note};
 };
-export async function beginWorkerRun({agent_id,request_id,host,provider,trigger,schedule_id,scheduler_run_id,evidence,lease_minutes=10}) {
+export async function beginWorkerRun({agent_id,request_id,host,provider,trigger,schedule_id,scheduler_run_id,evidence,lease_minutes=workflowDefaults.begin_worker_run.lease_minutes}) {
   request_id=text(request_id,'request_id',120);host=text(host,'host');provider=text(provider,'provider',80);
   if(!['interactive','scheduled'].includes(trigger))throw new Error('Invalid trigger');
   if(!Number.isInteger(lease_minutes)||lease_minutes<1||lease_minutes>60)throw new Error('Lease must be 1-60 minutes');

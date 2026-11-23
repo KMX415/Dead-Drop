@@ -28,7 +28,7 @@ function taskContext(state, task, agentId) {
     if (skill.digest !== pin.digest || skill.version !== pin.version) throw new Error('Lesson pin changed');
     const decision = task.lessonDecisions?.findLast(d => d.actorId === agentId && d.id === pin.id);
     return {...pin, name:skill.name, title:skill.title, status:skill.status, decision:decision?.action ?? 'pending',
-      reason:decision?.reason ?? null, applicable:skill.status === 'published' && decision?.action === 'adopt'};
+      reason:decision?.reason ?? null, applicable:task.assigneeId === agentId && task.status === 'in_progress' && skill.status === 'published' && decision?.action === 'adopt'};
   });
 }
 
@@ -53,7 +53,8 @@ export async function decideTaskLesson({agent_id,task_id,skill_id,digest,action,
     this.actor(state,agent_id);
     const task = getTask(state,task_id);
     const decisions = task.lessonDecisions ??= [];
-    const previous = decisions.find(d => d.actorId === agent_id && d.requestId === request_id);
+    const matchesRequest = d => d.actorId === agent_id && d.requestId === request_id;
+    const previous = decisions.find(matchesRequest) ?? task.lessonRetryReceipts?.find(matchesRequest);
     if (previous) {
       if (previous.fingerprint !== fingerprint) throw new Error('request_id already used for different content');
       return {taskId:task.id,revision:task.revision,lessons:taskContext(state,task,agent_id)};
@@ -66,6 +67,12 @@ export async function decideTaskLesson({agent_id,task_id,skill_id,digest,action,
     if (action === 'adopt') {
       if (lesson.status !== 'published') throw new Error('Lesson retired');
       if (context.some(l => l.id !== skill_id && l.name === lesson.name && l.applicable)) throw new Error('Conflicting lesson already adopted');
+    }
+    if (lesson.decision === action) {
+      const receipts = task.lessonRetryReceipts ??= [];
+      if (receipts.length >= 100) throw new Error('Task lesson retry receipts full');
+      receipts.push({actorId:agent_id,requestId:request_id,fingerprint});
+      return {taskId:task.id,revision:task.revision,lessons:context};
     }
     if (decisions.length >= 100) throw new Error('Task lesson history full');
     const now = this.now();

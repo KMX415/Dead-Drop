@@ -227,6 +227,9 @@ test('task lessons travel across handoffs and require each worker to adopt befor
   await mutate('handoff',{assignee_id:c,next_steps:['Verify in peer workspace']});
   const context=await call(bob,'get_task_lessons',{agent_id:c,task_id:task.id});
   assert.equal(context.lessons[0].decision,'pending');
+  const prior=await call(bob,'get_task_lessons',{agent_id:b,task_id:task.id});
+  assert.equal(prior.lessons[0].decision,'adopt');
+  assert.equal(prior.lessons[0].applicable,false);
   await mutate('accept',{agent_id:c});
   await mutate('complete',{agent_id:c});
   await assert.rejects(use(skill,{agent_id:c,task_id:task.id}),/adoption/);
@@ -254,4 +257,21 @@ test('competing versions need an explicit choice and concurrent decisions cannot
   await assert.rejects(choose(other,current.revision,'conflict'),/Conflicting/);
   const declined=await choose(selected,current.revision,'decline','decline');
   assert.equal((await choose(other,declined.revision,'switch')).lessons.filter(l=>l.applicable).length,1);
+});
+
+test('reaffirming a lesson after final approval preserves completion and retry evidence',async()=>{
+  const {alice,bob,a,b,published}=await setup(), skill=await published();
+  const task=await call(bob,'create_task',{agent_id:b,title:'Final review',description:'Verify result',acceptance:['Reviewed'],assignee_id:b,lesson_ids:[skill.id],request_id:'create'});
+  const args={agent_id:b,task_id:task.id};
+  const active=await call(bob,'update_task',{...args,action:'accept',expected_revision:1,summary:'Started',request_id:'start'});
+  const choice={...args,skill_id:skill.id,digest:skill.digest,action:'adopt',reason:'Matches the work',expected_revision:active.revision,request_id:'first'};
+  const adopted=await call(bob,'decide_task_lesson',choice);
+  await call(alice,'update_agent',{agent_id:a,expected_revision:0,provider:'test',capabilities:['review']});
+  const cycle=await call(bob,'start_review_cycle',{...args,reviewer_id:a,max_rounds:1,expected_task_revision:adopted.revision,request_id:'review',summary:'Ready',artifacts:['tests passed']});
+  await call(alice,'advance_review_cycle',{agent_id:a,cycle_id:cycle.id,expected_revision:cycle.revision,expected_task_revision:adopted.revision,action:'approve',summary:'Checked',artifacts:['reviewed diff'],request_id:'approve'});
+  const repeat={...choice,expected_revision:adopted.revision,reason:'Rechecked',request_id:'repeat'};
+  assert.deepEqual(await call(bob,'decide_task_lesson',repeat),adopted);
+  await call(bob,'update_task',{...args,action:'complete',expected_revision:adopted.revision,summary:'Finished',request_id:'finish'});
+  assert.equal((await call(bob,'decide_task_lesson',repeat)).lessons[0].applicable,false);
+  await assert.rejects(call(bob,'decide_task_lesson',{...repeat,action:'decline'}),/different content/);
 });

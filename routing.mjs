@@ -1,10 +1,11 @@
+import { workflowDefaults } from './workflow-defaults.mjs';
 import { assertGoalTask, goalReasons } from './goals.mjs';
 import { contractTaskReasons } from './contracts.mjs';
 import { eligibility, profileView, within } from './coordination.mjs';
 import { assertTaskReviewAction } from './review-cycles.mjs';
 
 const text=(v,n,max=4000)=>{if(typeof v!=='string'||!v.trim()||v.length>max)throw new Error('Invalid '+n);return v.trim();};
-export async function routeTask({agent_id,task_id,expected_revision,request_id,summary,next_steps,timeout_minutes=30,max_attempts=3}) {
+export async function routeTask({agent_id,task_id,expected_revision,request_id,summary,next_steps,timeout_minutes=workflowDefaults.route_task.timeout_minutes,max_attempts=workflowDefaults.route_task.max_attempts}) {
   request_id=text(request_id,'request_id',120);summary=text(summary,'summary');
   if(!Array.isArray(next_steps)||!next_steps.length||next_steps.length>30)throw new Error('Routing requires next_steps');
   next_steps=next_steps.map(s=>text(s,'next_steps',500));

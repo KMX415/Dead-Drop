@@ -1,3 +1,4 @@
+import { workflowDefaults } from './workflow-defaults.mjs';
 import { createHash, randomUUID } from 'node:crypto';
 import { boundedText as text, strings, relativePath, within, taskKinds } from './coordination.mjs';
 import { goalReasons } from './goals.mjs';
@@ -68,7 +69,7 @@ export function contractPin(id,digest) {
   if(typeof digest!=='string'||!/^[a-f0-9]{64}$/.test(digest))throw new Error('Invalid contract_digest');
   return {contractId:id,contractDigest:digest};
 }
-export async function proposeContract({agent_id,work_id,participants,repository,paths,kind='implementation',interface_description,compatibility,examples,task_refs=[],goal_id,deadline,max_versions=3,max_recovery_versions=2,request_id}) {
+export async function proposeContract({agent_id,work_id,participants,repository,paths,kind='implementation',interface_description,compatibility,examples,task_refs=[],goal_id,deadline,max_versions=workflowDefaults.propose_contract.max_versions,max_recovery_versions=workflowDefaults.propose_contract.max_recovery_versions,request_id}) {
   work_id=text(work_id,'work_id',120);request_id=text(request_id,'request_id',120);participants=strings(participants,'participants',10);paths=strings(paths,'paths').map(relativePath);
   if(participants.length<2||!participants.includes(agent_id)||!paths.length||!taskKinds.includes(kind))throw new Error('Contract requires participants, proposer and scope');
   if(typeof repository!=='string'||!/^([\w.-]+)\/([\w.-]+)$/.test(repository)||repository.split('/').some(x=>x==='.'||x==='..'))throw new Error('Invalid contract repository');

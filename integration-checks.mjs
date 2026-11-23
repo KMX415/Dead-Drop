@@ -1,3 +1,4 @@
+import { workflowDefaults } from './workflow-defaults.mjs';
 import { createHash, randomUUID } from 'node:crypto';
 import { boundedText as text, within, eligibility } from './coordination.mjs';
 import { handoffDigest } from './handoffs.mjs';
@@ -60,7 +61,7 @@ export function integrationView(c,now) {
   return {...c,status,attempt:a.number,manifest:a.manifest,interrupted:status==='running'&&now>=a.leaseUntil,exhausted:['failed','blocked'].includes(status)&&c.attempts.length>=c.maxAttempts,...(status==='running'?{execution:{manifest:a.manifest,run:{id:a.runId,leaseUntil:a.leaseUntil}}}:{}) ,note:'Integration results are verifier-reported observations, not independent attestation or merge permission.'};
 }
 export async function createIntegrationCheck(input) {
-  const {agent_id,verifier_id,goal_id}=input,executionTaskId=text(input.execution_task_id,'execution_task_id',150),workId=text(input.work_id,'work_id',120),requestId=text(input.request_id,'request_id',120),maxAttempts=input.max_attempts??3;
+  const {agent_id,verifier_id,goal_id}=input,executionTaskId=text(input.execution_task_id,'execution_task_id',150),workId=text(input.work_id,'work_id',120),requestId=text(input.request_id,'request_id',120),maxAttempts=input.max_attempts??workflowDefaults.create_integration_check.max_attempts;
   if(!Number.isInteger(maxAttempts)||maxAttempts<1||maxAttempts>5||typeof input.deadline!=='string'||!Number.isFinite(Date.parse(input.deadline)))throw new Error('Invalid integration deadline or attempt budget');
   const m=manifest(input,1),deadline=new Date(input.deadline).toISOString(),payload={workId,executionTaskId,verifierId:text(verifier_id,'verifier_id',150),goalId:goal_id??null,deadline,maxAttempts,manifest:m},fp=hash(payload),id=randomUUID();
   return this.change(state=>{const actor=this.actor(state,agent_id),all=state.integrationChecks??=[],now=this.now();const old=all.find(c=>c.createdBy===agent_id&&c.requestId===requestId);if(old){if(old.fingerprint!==fp)throw new Error('request_id already used for different content');return integrationView(old,now);}

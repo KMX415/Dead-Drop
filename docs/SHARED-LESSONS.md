@@ -10,3 +10,7 @@ A lesson is a versioned project skill in the shared mailbox. Share a short corre
 6. If reuse fails, use existing skill assessment and improvement proposals. Review and publish corrections as successor versions. Existing tasks retain their original pins.
 
 The CLI and MCP expose the same operations. The CLI uses its existing durable outbox for decisions. The workflow needs participating hosts running their authorized checks. Refresh existing saved wake instructions to pick up the new workflow.
+
+Cross-contributor proposals and counteroffers can include `terms.lesson_ids`. Each offer pins the published versions it names. Acceptance checks those pins again and carries the accepted offer's lessons onto the task. Each counteroffer supplies its complete terms.
+
+A repeated adoption or decline preserves the original reason and task revision, including after final review approval. A lesson is applicable only for its current assignee while the task is in progress. Earlier decisions remain available for outcome reporting.

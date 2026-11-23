@@ -14,6 +14,7 @@
     "test:team": "node team-harness.mjs",
     "test:team:live": "node team-harness.mjs --live",
     "smoke": "node smoke.mjs",
+    "settings": "node settings.mjs",
     "doctor": "node doctor.mjs",
     "activate": "node activation.mjs",
     "viewer": "node viewer.mjs",

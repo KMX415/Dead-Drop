@@ -1,3 +1,4 @@
+import { workflowDefaults } from './workflow-defaults.mjs';
 import { randomUUID } from 'node:crypto';
 import { boundedText, strings, within, eligibility } from './coordination.mjs';
 import { assertCollaborationTaskAction } from './collaboration.mjs';
@@ -34,7 +35,7 @@ function authorize(state,actor,task,policy,now,review=false){
   const result=eligibility(state,actor,review?{...task,assigneeId:actor.id,kind:'review',requiredCapabilities:[]}:task,policy,now,{goalExecution:false});
   if(!result.allowed)throw new Error(result.reasons.join('; '));
 }
-export async function requestPeerHelp({agent_id,task_id,expected_task_revision,recipient_id,required_capabilities=[],max_attempts=2,deadline,summary,request_id}){
+export async function requestPeerHelp({agent_id,task_id,expected_task_revision,recipient_id,required_capabilities=[],max_attempts=workflowDefaults.request_peer_help.max_attempts,deadline,summary,request_id}){
   integer(expected_task_revision,'expected_task_revision');integer(max_attempts,'max_attempts',5);
   summary=boundedText(summary,'summary',4000);request_id=boundedText(request_id,'request_id',120);required_capabilities=strings(required_capabilities,'required_capabilities');
   if(!recipient_id&&!required_capabilities.length)throw new Error('Supply exact recipient or required capabilities');

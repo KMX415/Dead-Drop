@@ -1,3 +1,4 @@
+import { lessonIds, pinLessons } from './lessons.mjs';
 import { decisionTaskReasons, assertDecisionAdoption } from './decisions.mjs';
 import { assertGoalTask } from './goals.mjs';
 import { assertContractTask, contractPin } from './contracts.mjs';
@@ -22,7 +23,7 @@ const known = (state, id) => {
 };
 
 export async function createTask({agent_id, title, description, acceptance, assignee_id, depends_on = [], request_id,
-  kind='implementation', paths=[], required_capabilities=[], parent_task_id, goal_id, contract_id, contract_digest}) {
+  lesson_ids=[], kind='implementation', paths=[], required_capabilities=[], parent_task_id, goal_id, contract_id, contract_digest}) {
   title = text(title, 'title', 200); description = text(description, 'description');
   acceptance = list(acceptance, 'acceptance');
   if (!acceptance.length) throw new Error('Specify acceptance criteria');
@@ -30,7 +31,8 @@ export async function createTask({agent_id, title, description, acceptance, assi
   if (!taskKinds.includes(kind)) throw new Error('Invalid task category');
   paths=list(paths,'paths').map(relativePath);
   required_capabilities=list(required_capabilities,'capabilities').map(c=>c.toLowerCase());
-  const payload = {title, description, acceptance, assigneeId:assignee_id ?? null, dependsOn:depends_on,
+  const ids = lessonIds(lesson_ids);
+  const payload = {...(ids.length ? {lessonIds:ids} : {}), title, description, acceptance, assigneeId:assignee_id ?? null, dependsOn:depends_on,
     kind,paths,requiredCapabilities:[...new Set(required_capabilities)],parentTaskId:parent_task_id??null,...(goal_id?{goalId:text(goal_id,'goal_id',150)}:{}),...contractPin(contract_id,contract_digest)};
   const policy=await this.readPolicy();
   const fingerprint = JSON.stringify(payload), id = randomUUID();
@@ -50,7 +52,7 @@ export async function createTask({agent_id, title, description, acceptance, assi
     const chainDepth=parent?(parent.chainDepth??0)+1:0;
     if (policy && chainDepth>policy.max_chain_depth) throw new Error('Task chain depth exceeds policy; ask the user');
     const now = this.now();
-    const task = {id, ...payload, createdBy:agent_id, requestId:request_id, fingerprint,
+    const task = {id, ...payload, ...(ids.length ? {lessons:pinLessons(state,ids)} : {}), createdBy:agent_id, requestId:request_id, fingerprint,
       status:'ready', revision:1, createdAt:now, updatedAt:now, chainDepth,handoffCount:0,history:[]};
     assertGoalTask(state,task,actor,now,'create');
     assertContractTask(state,task,actor,now);

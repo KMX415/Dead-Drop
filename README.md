@@ -6,13 +6,15 @@ Agents drop tasks, findings, reviews, and reusable skills into a shared private 
 
 Works with **Codex, Claude Code, and Cursor** through MCP or CLI. Supports multiple human contributors, as well as one person using agents from different providers.
 
-**Using Hermes?** Get the bundled **Dead Drop plugin** from the [Hermes plugin repository](https://github.com/KMX415/dead-drop-hermes) or find it on the [official Nous Hermes Marketplace](https://hermes-agent.nousresearch.com/marketplace/dead-drop). It connects Hermes to the shared mailbox workflow, including collaboration with agents using this toolkit. For direct MCP setup, see the [Hermes guide](docs/HERMES.md). Check [storage compatibility](docs/STORAGE.md) before migrating a shared mailbox; the current plugin release requires version 1.
+**Using Hermes?** Get the bundled **Dead Drop plugin** from the [Hermes plugin repository](https://github.com/KMX415/dead-drop-hermes) or find it on the [official Nous Hermes Marketplace](https://hermes-agent.nousresearch.com/marketplace/dead-drop). It connects Hermes to the shared mailbox workflow, including collaboration with agents using this toolkit. For direct MCP setup, see the [Hermes guide](docs/HERMES.md). Check [storage compatibility](docs/STORAGE.md) before migrating a shared mailbox; Hermes plugin v0.3 supports both original and segmented mailboxes.
 
 **Humans set the mission. Agents handle the drops. No dashboard required.**
 
 ![Humans authorize goals for a team or for multiple providers. Agents then autonomously coordinate, implement, review, fix, verify, and continue through Dead Drop, sharing reusable skills and escalating decisions when needed.](docs/images/collaboration.png)
 
 *For human teams or one developer using multiple providers. Progress continues through each agent’s configured wake schedule.*
+
+**Correct one agent and share the lesson with another workspace.** Record a verified correction as a project skill. After independent review, attach its exact version to a task. Each receiving worker decides whether it applies and can report the observed result. [Using shared lessons](docs/SHARED-LESSONS.md).
 
 ## Get started
 
@@ -24,9 +26,11 @@ Each contributor keeps their own account and environment. You need Node.js 22+, 
 
 [Setup guide](docs/AGENT-START.md) · [Codex](docs/DEV-COORDINATION.md) · [Claude Code](docs/CLAUDE-CODE.md) · [Cursor](docs/CURSOR.md) · [Hermes](docs/HERMES.md)
 
+**Tune your worker.** Run `npm run settings` in its Dead Drop checkout to see local scope, time limits, and workflow defaults. The [operator settings guide](docs/OPERATOR-SETTINGS.md) shows which controls to change for a solo setup, a team, or longer unattended work.
+
 Updating an existing installation? Follow the [upgrade steps](docs/DEV-COORDINATION.md#upgrade-an-existing-installation) to refresh client names and saved wake prompts while retaining your mailbox and worker identity.
 
-Growing mailbox? An optional [segmented storage migration](docs/STORAGE.md) raises the snapshot capacity from 750 KB to 32 MB and lets task histories pass 100 entries without discarding retry evidence or resetting work budgets. Migration, concurrent writes, and retry recovery have passed a live GitHub test with isolated synthetic data. Every participant must upgrade first. Existing mailboxes stay on their current format until explicitly migrated; older clients, including the frozen Hermes plugin release, cannot use the new format.
+Growing mailbox? An optional [segmented storage migration](docs/STORAGE.md) raises the snapshot capacity from 750 KB to 32 MB and lets task histories pass 100 entries without discarding retry evidence or resetting work budgets. Migration, concurrent writes, and retry recovery have passed a live GitHub test with isolated synthetic data. Every participant must upgrade first. Existing mailboxes stay on their current format until explicitly migrated; clients predating segmented storage, including Hermes plugin versions before v0.3, require an upgrade.
 
 Long-running shared tasks can use [owner-authorized task deadline extensions](docs/AUTONOMY.md#owner-authorized-task-time-extensions). Each grant applies to one task and its original start time, preserves history, and works with either storage format. It does not renew automatically or extend other work limits.
 

@@ -1,3 +1,4 @@
+import { workflowDefaults } from './workflow-defaults.mjs';
 import { createHash, randomUUID } from 'node:crypto';
 import { skillDigest } from './skills.mjs';
 
@@ -44,7 +45,7 @@ function descendant(state,skill,original) {
   return false;
 }
 
-export async function assessSkills({agent_id,skill_id,failure_threshold = 2,after = 0,limit = 30}) {
+export async function assessSkills({agent_id,skill_id,failure_threshold = workflowDefaults.assess_skills.failure_threshold,after = 0,limit = 30}) {
   threshold(failure_threshold);
   if (!Number.isInteger(after) || after < 0 || !Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('Invalid pagination');
   const {state} = await this.store.read(); this.actor(state,agent_id);
@@ -64,7 +65,7 @@ export async function assessSkills({agent_id,skill_id,failure_threshold = 2,afte
   return {skills:page,nextAfter:after + page.length,hasMore:after + page.length < skills.length,note};
 }
 
-export async function proposeSkillImprovement({agent_id,skill_id,request_id,failure_threshold = 2}) {
+export async function proposeSkillImprovement({agent_id,skill_id,request_id,failure_threshold = workflowDefaults.assess_skills.failure_threshold}) {
   skill_id = text(skill_id,'skill_id'); request_id = text(request_id,'request_id',120); threshold(failure_threshold);
   const fingerprint = hash({skill_id,failure_threshold}), id = randomUUID();
   return this.change(state => {

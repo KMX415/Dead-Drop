@@ -1,3 +1,4 @@
+import { skillDigest } from '../skills.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Mailbox } from '../mailbox.mjs';
@@ -108,4 +109,31 @@ test('acceptance refuses expired local policy and unreported recipient capabilit
   await f.boxes.bob.updateAgent({agent_id:f.ids.bob,expected_revision:1,provider:'synthetic',capabilities:[],paths:['src']});
   await assert.rejects(f.advance('bob',n,'accept'),/capabilities/);
   assert.equal((f.store.state.tasks??[]).length,0);
+});
+
+test('offers bind exact lesson versions through counters, retries and task creation',async()=>{
+  const f=await fixture();
+  const skills=['one','two'].map(id=>{
+    const skill={id,name:id,version:1,status:'published'};
+    return {...skill,digest:skillDigest(skill)};
+  });
+  f.store.state.skills=skills;
+  await f.agreement('alice','bob');await f.agreement('bob','alice');
+  const terms={...f.terms,lesson_ids:['one']};
+  const offer=await f.propose({terms});
+  assert.equal(offer.terms.lessons[0].digest,skills[0].digest);
+  const counter=await f.advance('bob',offer,'counter',{terms:{...terms,lesson_ids:['two']}});
+  f.store.state.skills[1].status='retired';
+  await assert.rejects(f.advance('alice',counter,'accept'),/published/);
+  assert.equal((await f.propose({terms})).id,offer.id);
+  f.store.state.skills[1].status='published';
+  f.store.state.skills[1].version=2;
+  f.store.state.skills[1].digest=skillDigest(f.store.state.skills[1]);
+  await assert.rejects(f.advance('alice',counter,'accept'),/pins changed/);
+  f.store.state.skills[1]={...skills[1]};
+  const accepted=await f.advance('alice',counter,'accept');
+  const task=f.store.state.tasks[0];
+  assert.deepEqual(task.lessons,[{id:'two',version:1,digest:skills[1].digest}]);
+  assert.deepEqual(accepted.history[0].terms.lessonIds,['one']);
+  assert.throws(()=>collaboration.assertCollaborationTaskAction(f.store.state,{...task,lessons:[]},f.store.state.agents[f.ids.bob],f.policies.bob,f.now()),/terms or worker/);
 });

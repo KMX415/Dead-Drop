@@ -1,3 +1,4 @@
+import { workflowDefaults } from './workflow-defaults.mjs';
 import { createHash, randomUUID } from 'node:crypto';
 import { boundedText as text, strings, within } from './coordination.mjs';
 import { goalReasons } from './goals.mjs';
@@ -80,7 +81,7 @@ function responseCurrent(state,d,response,now) {
   }
   return true;
 }
-export async function requestDecision({agent_id,issue_key,required_responders,question,options,evidence,task_refs,blocked_task_ids=[],goal_id,expected_goal_revision,category='implementation',deadline,max_revisions=3,expected_revision,request_id}) {
+export async function requestDecision({agent_id,issue_key,required_responders,question,options,evidence,task_refs,blocked_task_ids=[],goal_id,expected_goal_revision,category='implementation',deadline,max_revisions=workflowDefaults.request_decision.max_revisions,expected_revision,request_id}) {
   issue_key=text(issue_key,'issue_key',120);request_id=text(request_id,'request_id',120);required_responders=strings(required_responders,'required_responders',10);blocked_task_ids=strings(blocked_task_ids,'blocked_task_ids',20);
   if(!required_responders.length||!categories.includes(category)||!Number.isInteger(max_revisions)||max_revisions<1||max_revisions>5)throw new Error('Invalid decision responders, category or revision budget');
   if(typeof deadline!=='string'||!Number.isFinite(Date.parse(deadline)))throw new Error('Invalid decision deadline');deadline=new Date(deadline).toISOString();

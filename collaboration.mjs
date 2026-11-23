@@ -1,3 +1,5 @@
+import { workflowDefaults } from './workflow-defaults.mjs';
+import { lessonIds, lessonIdsSchema, pinLessons } from './lessons.mjs';
 import { assertGoalTask } from './goals.mjs';
 import { randomUUID } from 'node:crypto';
 import { boundedText, strings, relativePath, taskKinds, within, eligibility } from './coordination.mjs';
@@ -7,13 +9,18 @@ const revision = v => { if (!Number.isInteger(v) || v < 1) throw new Error('Inva
 const timestamp = (v,n) => { if(typeof v !== 'string' || !Number.isFinite(Date.parse(v))) throw new Error('Invalid '+n); return new Date(v).toISOString(); };
 const list = (v,n) => strings(v,n).map(x=>text(x,n));
 function termsView(input) {
-  if(!input || typeof input!=='object' || Array.isArray(input) || Object.keys(input).some(k=>!['title','description','acceptance','kind','paths','required_capabilities'].includes(k))) throw new Error('Invalid negotiation terms');
+  if(!input || typeof input!=='object' || Array.isArray(input) || Object.keys(input).some(k=>!['title','description','acceptance','kind','paths','required_capabilities','lesson_ids'].includes(k))) throw new Error('Invalid negotiation terms');
   const result={title:text(input.title,'title',200),description:text(input.description,'description',4000),acceptance:list(input.acceptance,'acceptance'),
     kind:input.kind??'implementation',paths:list(input.paths,'paths').map(relativePath),requiredCapabilities:list(input.required_capabilities??[],'capabilities').map(c=>c.toLowerCase())};
   if(!result.acceptance.length || !result.paths.length || !taskKinds.includes(result.kind)) throw new Error('Terms require acceptance, paths and valid kind');
+  const ids = lessonIds(input.lesson_ids === undefined ? [] : input.lesson_ids);
+  if (ids.length) result.lessonIds = ids;
   return result;
 }
-const termKey = t => JSON.stringify({title:t.title,description:t.description,acceptance:t.acceptance,kind:t.kind,paths:t.paths,requiredCapabilities:t.requiredCapabilities});
+const termKey = t => JSON.stringify({title:t.title,description:t.description,acceptance:t.acceptance,kind:t.kind,paths:t.paths,requiredCapabilities:t.requiredCapabilities,...(t.lessonIds ? {lessonIds:t.lessonIds} : {}),...(t.lessons ? {lessons:t.lessons} : {})});
+function pinnedTerms(state, terms) {
+  return terms.lessonIds ? {...terms,lessons:pinLessons(state,terms.lessonIds)} : terms;
+}
 const active = (a,now) => a.status==='active' && Date.parse(a.expiresAt)>now;
 function agreementsFor(state,from,to,terms,now) {
   return [ [from,to], [to,from] ].map(([owner,peer])=>{
@@ -69,7 +76,7 @@ function page(all,after,limit,key) {
   const items=all.slice(after,after+limit);return {[key]:items,nextAfter:after+items.length,hasMore:after+items.length<all.length};
 }
 
-export async function proposeNegotiation({agent_id,recipient_id,work_id,terms,deadline,max_rounds=3,request_id,goal_id}) {
+export async function proposeNegotiation({agent_id,recipient_id,work_id,terms,deadline,max_rounds=workflowDefaults.propose_negotiation.max_rounds,request_id,goal_id}) {
   request_id=text(request_id,'request_id',120);work_id=text(work_id,'work_id',120);terms=termsView(terms);deadline=timestamp(deadline,'deadline');
   if(!Number.isInteger(max_rounds)||max_rounds<1||max_rounds>5)throw new Error('Negotiation requires 1-5 rounds');
   if(goal_id!==undefined)goal_id=text(goal_id,'goal_id',150);
@@ -83,9 +90,10 @@ export async function proposeNegotiation({agent_id,recipient_id,work_id,terms,de
     if(Date.parse(deadline)<=this.now())throw new Error('Negotiation deadline must be in the future');
     if(all.some(n=>n.requesterOwner===actor.owner && n.workId===work_id))throw new Error('Work already has a negotiation; do not reset its budget');
     if(all.length>=200)throw new Error('Negotiation registry full');
+    const offer = pinnedTerms(state,terms);
     const n={id,...(goal_id?{goalId:goal_id}:{}),workId:work_id,requesterId:agent_id,recipientId:recipient_id,requesterOwner:actor.owner,performerOwner:peer.owner,
-      terms,deadline,maxRounds:max_rounds,round:1,offeredBy:agent_id,status:'proposed',revision:1,requestId:request_id,fingerprint,
-      createdAt:this.now(),updatedAt:this.now(),history:[{actorId:agent_id,offeredBy:agent_id,action:'propose',terms:structuredClone(terms),round:1,createdAt:this.now()}]};
+      terms:offer,deadline,maxRounds:max_rounds,round:1,offeredBy:agent_id,status:'proposed',revision:1,requestId:request_id,fingerprint,
+      createdAt:this.now(),updatedAt:this.now(),history:[{actorId:agent_id,offeredBy:agent_id,action:'propose',terms:structuredClone(offer),round:1,createdAt:this.now()}]};
     assertGoalTask(state,taskFor(n,'pending',this.now()),actor,this.now(),'create');
     all.push(n);return n;
   });
@@ -125,8 +133,9 @@ export async function advanceNegotiation({agent_id,negotiation_id,expected_revis
       if(action==='counter') {
         if(n.round>=n.maxRounds)throw new Error('Negotiation round budget exhausted; decision required');
         assertGoalTask(state,taskFor({...n,terms},'pending',this.now()),actor,this.now(),'create');
-        n.round++;n.terms=terms;n.offeredBy=agent_id;n.status='proposed';
+        n.round++;n.terms=pinnedTerms(state,terms);n.offeredBy=agent_id;n.status='proposed';
       } else if(action==='accept') {
+        if (termKey(pinnedTerms(state,n.terms)) !== termKey(n.terms)) throw new Error('Offered lesson pins changed');
         const agreements=agreementsFor(state,n.requesterOwner,n.performerOwner,n.terms,this.now());
         const task=taskFor(n,taskId,this.now());
         assertGoalTask(state,task,actor,this.now(),'create');
@@ -163,7 +172,7 @@ export function assertCollaborationTaskAction(state,task,actor,policy,now,action
 
 const str={type:'string',minLength:1},arr={type:'array',items:str,maxItems:30},integer={type:'integer',minimum:1};
 const actor={agent_id:str},mutation={...actor,expected_revision:integer,request_id:str,summary:str};
-const termSchema={type:'object',properties:{title:str,description:str,acceptance:arr,kind:{...str,enum:taskKinds},paths:arr,required_capabilities:arr},required:['title','description','acceptance','paths'],additionalProperties:false};
+const termSchema={type:'object',properties:{title:str,description:str,acceptance:arr,kind:{...str,enum:taskKinds},paths:arr,required_capabilities:arr,lesson_ids:lessonIdsSchema},required:['title','description','acceptance','paths'],additionalProperties:false};
 const tool=(name,description,properties,required,readOnlyHint=false)=>({name,description,inputSchema:{type:'object',properties,required,additionalProperties:false},annotations:{readOnlyHint,destructiveHint:false,openWorldHint:true}});
 export const collaborationTools=[
   tool('set_collaboration_agreement','Record owner-authorized directional scope. This shared declaration never grants local execution permission or changes policy.',{...actor,peer_owner:str,allowed_kinds:arr,allowed_paths:arr,expires_at:str,request_id:str},['agent_id','peer_owner','allowed_kinds','allowed_paths','expires_at','request_id']),

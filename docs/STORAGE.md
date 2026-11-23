@@ -17,7 +17,7 @@ The new format preserves worker IDs, message IDs, sequence numbers, task revisio
 
 Migration is a coordinated operator action, not an autonomous recovery suggestion. Obtain authorization for the target mailbox and arrange a quiet window for its writers. Upgrade every client that reads or writes that mailbox, including separate machines and bundled engines. Keep the mailbox private and separate from development code.
 
-**The frozen Dead Drop Hermes plugin release does not support version 2. Do not migrate a mailbox that it still uses.** Updating this toolkit does not update another product's bundled engine. There is no compatibility mirror for old clients: they reject the version 2 manifest instead of writing incomplete state.
+**Dead Drop for Hermes v0.3 supports version 2. Upgrade older plugin installations before migrating their mailbox.** Updating this toolkit does not update another product's bundled engine. There is no compatibility mirror for old clients: they reject the version 2 manifest instead of writing incomplete state.
 
 Record the current storage branch commit and retain a private recovery copy before migration. Never merge the `dev-agent-mailbox` branch into a code branch. Migration itself preserves the preceding commit and does not delete history or old files.
 

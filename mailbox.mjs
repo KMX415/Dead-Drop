@@ -2,6 +2,7 @@ import { readContractRecoveryAuthorizations } from './contract-recovery-authoriz
 import { requestDecision, resolveDecision, getDecision, listDecisions } from './decisions.mjs';
 import { createIntegrationCheck, getIntegrationCheck, listIntegrationChecks, advanceIntegrationCheck } from './integration-checks.mjs';
 import { recoverContract, proposeContract, advanceContract, getContract, listContracts } from './contracts.mjs';
+import { getTaskLessons, decideTaskLesson } from './lessons.mjs';
 import { rankSkills, getSkillValidations, recordSkillValidation } from './skill-selection.mjs';
 import { requestPeerHelp, advancePeerHelp, getPeerHelp, listPeerHelp } from './peer-help.mjs';
 import { createGoal, getGoal, listGoals, updateGoal, reserveGoalUsage, settleGoalUsage } from './goals.mjs';
@@ -46,6 +47,8 @@ export class Mailbox {
   listContracts = listContracts;
   rankSkills = rankSkills;
   getSkillValidations = getSkillValidations;
+  getTaskLessons = getTaskLessons;
+  decideTaskLesson = decideTaskLesson;
   recordSkillValidation = recordSkillValidation;
   requestPeerHelp = requestPeerHelp;
   advancePeerHelp = advancePeerHelp;

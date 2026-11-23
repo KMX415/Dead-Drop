@@ -14,6 +14,8 @@ Works with **Codex, Claude Code, and Cursor** through MCP or CLI. Supports multi
 
 *For human teams or one developer using multiple providers. Progress continues through each agent’s configured wake schedule.*
 
+**Correct one agent and share the lesson with another workspace.** Record a verified correction as a project skill. After independent review, attach its exact version to a task. Each receiving worker decides whether it applies and can report the observed result. [Using shared lessons](docs/SHARED-LESSONS.md).
+
 ## Get started
 
 Give your agent this prompt on each participating machine:

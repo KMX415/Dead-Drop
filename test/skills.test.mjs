@@ -201,3 +201,57 @@ test('headless addressed review exchange leads to reusable skill without reply l
   assert.deepEqual(store.state.messages.map(m=>m.kind),['review_request','answer']);
   for(const worker of [a,reviewer])assert.deepEqual((await call(alice,'check_inbox',{agent_id:worker})).messages,[]);
 });
+
+test('task lessons travel across handoffs and require each worker to adopt before reporting use',async()=>{
+  const {alice,bob,a,b,c,create,review,update,use}=await setup();
+  const draft=await create();
+  const request={agent_id:a,title:'Fresh workspace',description:'Implement endpoint',acceptance:['Contract holds'],
+    assignee_id:b,lesson_ids:[draft.id],request_id:'handoff-task'};
+  await assert.rejects(call(alice,'create_task',request),/published/);
+  const skill=await update(await review(draft));
+  let task=await call(alice,'create_task',request);
+  const mutate=async(action,extra={})=>{
+    task=await call(bob,'update_task',{agent_id:b,task_id:task.id,expected_revision:task.revision,
+      action,summary:'Recorded progress',request_id:action+task.revision,...extra});
+  };
+  await mutate('accept');
+  const decision={agent_id:b,task_id:task.id,skill_id:skill.id,digest:skill.digest,expected_revision:task.revision,
+    action:'adopt',reason:'Applies to this endpoint',request_id:'choose'};
+  await assert.rejects(call(alice,'decide_task_lesson',{...decision,agent_id:a}),/assignee/);
+  await assert.rejects(call(bob,'decide_task_lesson',{...decision,digest:'wrong'}),/pin/);
+  const adopted=await call(bob,'decide_task_lesson',decision);
+  assert.equal(adopted.lessons[0].applicable,true);
+  assert.deepEqual(await call(bob,'decide_task_lesson',decision),adopted);
+  await assert.rejects(call(bob,'decide_task_lesson',{...decision,reason:'changed'}),/different content/);
+  task.revision=adopted.revision;
+  await mutate('handoff',{assignee_id:c,next_steps:['Verify in peer workspace']});
+  const context=await call(bob,'get_task_lessons',{agent_id:c,task_id:task.id});
+  assert.equal(context.lessons[0].decision,'pending');
+  await mutate('accept',{agent_id:c});
+  await mutate('complete',{agent_id:c});
+  await assert.rejects(use(skill,{agent_id:c,task_id:task.id}),/adoption/);
+  const report=await use(skill,{task_id:task.id});
+  assert.equal(report.uses[0].taskId,task.id);
+  await update(report,'retire');
+  assert.equal((await call(bob,'get_task_lessons',{agent_id:b,task_id:task.id})).lessons[0].applicable,false);
+  assert.equal((await call(alice,'create_task',request)).id,task.id);
+});
+
+test('competing versions need an explicit choice and concurrent decisions cannot overwrite one another',async()=>{
+  const {alice,bob,a,b,create,review,update,published}=await setup();
+  const first=await published();
+  const second=await update(await review(await create({supersedes_id:first.id,request_id:'next-version'})));
+  const req={agent_id:a,title:'Check handoff',description:'Inspect both versions',acceptance:['One selected'],assignee_id:b,request_id:'work'};
+  await assert.rejects(call(alice,'create_task',{...req,lesson_ids:[first.id,first.id]}),/lesson_ids/);
+  let t=await call(alice,'create_task',{...req,lesson_ids:[first.id,second.id]});
+  t=await call(bob,'update_task',{agent_id:b,task_id:t.id,action:'accept',expected_revision:t.revision,request_id:'accept',summary:'Ready'});
+  const choose=(s,rev,key,action='adopt')=>call(bob,'decide_task_lesson',{agent_id:b,task_id:t.id,
+    skill_id:s.id,digest:s.digest,expected_revision:rev,action,reason:'Check compatibility',request_id:key});
+  const attempts=await Promise.allSettled([choose(first,t.revision,'first'),choose(second,t.revision,'second')]);
+  assert.equal(attempts.filter(v=>v.status==='fulfilled').length,1);
+  const current=await call(bob,'get_task_lessons',{agent_id:b,task_id:t.id});
+  const selected=current.lessons[0].applicable?first:second, other=selected===first?second:first;
+  await assert.rejects(choose(other,current.revision,'conflict'),/Conflicting/);
+  const declined=await choose(selected,current.revision,'decline','decline');
+  assert.equal((await choose(other,declined.revision,'switch')).lessons.filter(l=>l.applicable).length,1);
+});

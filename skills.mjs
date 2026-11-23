@@ -143,6 +143,13 @@ export async function recordSkillUse({agent_id,skill_id,request_id,outcome,summa
     if (retry(skill,agent_id,request_id,fingerprint)) return skillView(skill);
     if (skill.status !== 'published') throw new Error('Only published skills accept use reports');
     completedTask(state,taskId);
+    const task = taskId && state.tasks.find(t => t.id === taskId);
+    const pin = task?.lessons?.find(p => p.id === skill_id);
+    if (pin) {
+      const decision = task.lessonDecisions?.findLast(d => d.id === skill_id && d.actorId === agent_id);
+      if (pin.digest !== skill.digest || decision?.action !== 'adopt') throw new Error('Pinned lesson use requires adoption');
+      if (taskId === skill.sourceTaskId) throw new Error('Use requires a different task');
+    }
     if (skill.uses.length >= 100) throw new Error('Skill use history full');
     const now = this.now();
     skill.uses.push({actorId:agent_id,outcome,summary,evidence,taskId,createdAt:now,requestId:request_id,fingerprint});

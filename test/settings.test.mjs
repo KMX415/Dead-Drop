@@ -17,7 +17,10 @@ test('offline settings distinguish absence, override, expiry and invalid policy'
   assert.deepEqual(await readdir(path),[]);
   assert.ok(empty.workflows.every(w => w.minimum <= w.defaultValue && w.defaultValue <= w.maximum));
   const repo='team/mail';
+  await assert.rejects(inspectSettings(dir,{AGENT_MAILBOX_REPO:'team/..'}),/Repository/);
   await save('config.json',{repo});
+  await save('mailbox-worker.json',{repo,login:'user',agentId:'user/broken'});
+  await assert.rejects(inspectSettings(dir,{}),/Malformed saved worker identity/);
   await save('mailbox-worker.json',{repo,login:'user',agentId:'user/12345678-1234-4321-8123-123456789abc'});
   const policy={version:1,repo,owner:'user',allowed_kinds:['review'],allowed_paths:['SRC'],allow_unassigned:false,
     max_handoffs:2,max_active_tasks:1,max_chain_depth:0,max_task_minutes:35,expires_at:'2026-01-02T00:00:00Z'};

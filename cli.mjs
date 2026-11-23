@@ -1,3 +1,4 @@
+import { validateWorker } from './config.mjs';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { GitHubStore } from './github.mjs';
@@ -14,8 +15,7 @@ export async function worker(store,login,{unattended=false,allowedTools=null,ide
   let exists=false;
   try{saved=JSON.parse(await readFile(identityPath,'utf8'));exists=true;}catch(error){if(error.code!=='ENOENT')throw error;}
   if(exists) {
-    if(!saved || typeof saved!=='object' || Array.isArray(saved) || typeof saved.repo!=='string' || typeof saved.login!=='string' || typeof saved.agentId!=='string' || !saved.agentId.startsWith(login+'/') || !/^[^/]+\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(saved.agentId))throw new Error('Malformed saved worker identity; inspect setup before continuing');
-    if(saved.repo!==store.repo || saved.login!==login)throw new Error('Worker identity belongs to another repository/account; use a separate checkout');
+    validateWorker(saved,store.repo,login);
     return saved;
   }
   if(unattended || allowedTools!==null)throw new Error('Unattended or restricted CLI requires an existing saved worker identity; run authorized setup first');

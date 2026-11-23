@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
+import { validateRepo, validateWorker } from './config.mjs';
 import { validatePolicy } from './coordination.mjs';
 import { normalizeAllowedTools } from './tool-access.mjs';
 import { tools } from './tools.mjs';
@@ -25,10 +26,9 @@ async function localFile(dir, name) {
 export async function inspectSettings(dir = runtime, env = process.env, now = Date.now()) {
   const config = env.AGENT_MAILBOX_REPO ? undefined : await localFile(dir,'config.json');
   const repo = env.AGENT_MAILBOX_REPO || config?.repo;
-  if ((repo !== undefined || config) && (typeof repo !== 'string' || !/^[\w.-]+\/[\w.-]+$/.test(repo))) throw new Error('Invalid mailbox repository setting');
+  if (config || repo !== undefined) validateRepo(repo);
   const worker = await localFile(dir,'mailbox-worker.json');
-  if (worker && (!repo || worker.repo !== repo || typeof worker.login !== 'string' || !worker.login ||
-      typeof worker.agentId !== 'string' || !worker.agentId.startsWith(worker.login + '/'))) throw new Error('Inspect saved worker identity and mailbox selection');
+  if (worker) validateWorker(worker,repo,worker.login);
   const input = await localFile(dir,'autonomy.json');
   let policy = {status:'absent'};
   if (input) {

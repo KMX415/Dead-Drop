@@ -1,4 +1,4 @@
-import { configuredRepo } from './config.mjs';
+import { configuredRepo, validateRepo } from './config.mjs';
 import { spawn } from 'node:child_process';
 import { SegmentedStorage, FORMAT, encodeSnapshot } from './segmented-storage.mjs';
 
@@ -44,7 +44,7 @@ export function run(command, args, input) {
 
 export class GitHubStore {
   constructor(repo = configuredRepo()) {
-    if (typeof repo !== 'string' || !/^[\w.-]+\/[\w.-]+$/.test(repo) || repo.split('/').some(part => part === '.' || part === '..')) throw new Error('Repository must be owner/name');
+    validateRepo(repo);
     this.repo = repo;
     this.segmented = new SegmentedStorage(this, STORAGE_BRANCH, STORAGE_FILE);
   }
